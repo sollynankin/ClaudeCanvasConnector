@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Canvas Library</title>
+<style>
+  :root {
+    --bg: #f6f5f1; --panel: #ffffff; --ink: #1f2328; --muted: #6b7078; --line: #e3e1da;
+    --accent: #c2410c; --accent-ink: #ffffff; --chip: #efede6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #17181a; --panel: #202225; --ink: #e8e6e1; --muted: #9a9ea6; --line: #33363a; --accent: #f08a4b; --accent-ink: #1a1a1a; --chip: #2a2c30; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { padding: 20px 24px 8px; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  h1 { margin: 0; font-size: 20px; letter-spacing: -0.01em; }
+  header p { margin: 0; color: var(--muted); font-size: 13px; }
+  main { display: grid; grid-template-columns: minmax(260px, 340px) 1fr; gap: 16px; padding: 12px 24px 32px; }
+  @media (max-width: 760px) { main { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px; min-height: 120px; }
+  .course { padding: 10px 10px 6px; }
+  .course h2 { margin: 0; font-size: 14px; display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+  .course .code { color: var(--muted); font-weight: 400; font-size: 12px; }
+  .row { display: flex; align-items: center; gap: 6px; border-radius: 7px; padding: 6px 8px; cursor: pointer; }
+  .row:hover, .row.on { background: var(--chip); }
+  .row .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row .meta { color: var(--muted); font-size: 12px; }
+  button { font: inherit; cursor: pointer; border: 1px solid var(--line); background: transparent; color: var(--muted); border-radius: 6px; padding: 2px 8px; font-size: 12px; }
+  button:hover { color: var(--accent); border-color: var(--accent); }
+  .ref { font: 12px ui-monospace, Consolas, monospace; color: var(--muted); }
+  .type { font-size: 11px; background: var(--chip); border-radius: 4px; padding: 1px 6px; color: var(--muted); }
+  pre { white-space: pre-wrap; word-break: break-word; font: 13px/1.55 ui-monospace, Consolas, monospace; margin: 0; padding: 12px; }
+  .head { padding: 10px 12px; border-bottom: 1px solid var(--line); }
+  .head h3 { margin: 0 0 2px; font-size: 16px; }
+  .empty { padding: 24px; color: var(--muted); text-align: center; }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Canvas Library</h1>
+  <p id="sub">Modules you add from Canvas appear here and are browsable by Claude.</p>
+</header>
+<main>
+  <div class="panel" id="left"></div>
+  <div class="panel" id="right"><div class="empty">Select a module to browse its contents.</div></div>
+</main>
+<script>
+const $ = (s) => document.querySelector(s);
+const el = (tag, props = {}, ...kids) => {
+  const n = Object.assign(document.createElement(tag), props);
+  for (const k of kids) n.append(k);
+  return n;
+};
+let state = { courses: [], course: null, module: null };
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  if (!r.ok) throw new Error(r.status);
+  return r.json();
+}
+
+async function load() {
+  state.courses = (await api('/api/library')).courses;
+  renderLeft();
+}
+
+function renderLeft() {
+  const left = $('#left');
+  left.replaceChildren();
+  if (!state.courses.length) {
+    left.append(el('div', { className: 'empty' }, 'Nothing here yet. Open a Canvas course, click the extension icon, and add a module.'));
+    return;
+  }
+  for (const c of state.courses) {
+    const rm = el('button', { textContent: 'Remove course', title: 'Remove this course from the library' });
+    rm.onclick = async (e) => {
+      e.stopPropagation();
+      if (!confirm(`Remove "${c.name}" and everything saved for it?`)) return;
+      await api(`/api/course?course=${c.id}`, { method: 'DELETE' });
+      state.module = null; $('#right').replaceChildren(el('div', { className: 'empty' }, 'Select a module to browse its contents.'));
+      load();
+    };
+    const box = el('div', { className: 'course' }, el('h2', {}, el('span', {}, c.name, ' ', el('span', { className: 'code' }, c.code || '')), rm));
+    for (const m of c.modules) {
+      const row = el('div', { className: 'row' + (state.module === m.id && state.course === c.id ? ' on' : '') },
+        el('span', { className: 'name', textContent: m.name }), el('span', { className: 'meta', textContent: m.items + ' items' }));
+      row.onclick = () => openModule(c.id, m.id);
+      box.append(row);
+    }
+    left.append(box);
+  }
+}
+
+async function openModule(cid, mid) {
+  state.course = cid; state.module = mid; renderLeft();
+  const m = await api(`/api/module?course=${cid}&module=${mid}`);
+  const right = $('#right');
+  right.replaceChildren(el('div', { className: 'head' }, el('h3', { textContent: m.name }), el('span', { className: 'meta', textContent: `Updated ${new Date(m.updatedAt).toLocaleString()}` })));
+  const rm = el('button', { textContent: 'Remove module' });
+  rm.onclick = async () => {
+    if (!confirm(`Remove module "${m.name}" from the library?`)) return;
+    await api(`/api/module?course=${cid}&module=${mid}`, { method: 'DELETE' });
+    state.module = null; right.replaceChildren(el('div', { className: 'empty' }, 'Removed.')); load();
+  };
+  right.firstChild.append(' ', rm);
+  for (const it of m.items) {
+    const row = el('div', { className: 'row', style: `padding-left:${8 + it.indent * 16}px` },
+      el('span', { className: 'type', textContent: it.type }), el('span', { className: 'name', textContent: it.title }),
+      el('span', { className: 'ref', textContent: it.ref }));
+    row.onclick = () => openRef(cid, it.ref, row);
+    right.append(row);
+  }
+  right.append(el('div', { id: 'preview' }));
+}
+
+async function openRef(cid, ref, row) {
+  const prev = $('#preview');
+  prev.replaceChildren(el('pre', { textContent: 'Loading…' }));
+  try {
+    const r = await api(`/api/read?course=${cid}&ref=${encodeURIComponent(ref)}`);
+    prev.replaceChildren(
+      el('div', { className: 'head' }, el('h3', { textContent: r.title }), el('span', { className: 'meta', textContent: r.header.join('  ·  ') })),
+      el('pre', { textContent: r.body.slice(0, 60000) + (r.body.length > 60000 ? '\n\n[preview truncated]' : '') }));
+    prev.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  } catch { prev.replaceChildren(el('pre', { textContent: 'Could not load this item.' })); }
+}
+
+load();
+</script>
+</body>
+</html>
