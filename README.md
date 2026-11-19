@@ -36,8 +36,8 @@ Works on Windows, macOS and Linux.
 Open a terminal (PowerShell on Windows, Terminal on macOS) and run:
 
 ```bash
-git clone https://github.com/<your-github-username>/canvas-library.git
-cd canvas-library
+git clone https://github.com/sollynankin/ClaudeCanvasConnector.git
+cd ClaudeCanvasConnector
 npm install
 ```
 
@@ -47,14 +47,14 @@ No git? Download the ZIP from GitHub, unzip it, open a terminal inside that fold
 
 1. In your browser, open `chrome://extensions` (Edge: `edge://extensions`).
 2. Switch on **Developer mode** (top right).
-3. Click **Load unpacked** and choose the **`extension`** folder inside `canvas-library`.
+3. Click **Load unpacked** and choose the **`extension`** folder inside the downloaded project.
 4. Optional: click the puzzle-piece icon in the toolbar and pin **Canvas Library**.
 
 > Run `npm run setup` any time to see these steps with the exact folder path for your computer.
 
 ### 3. Connect it to Claude
 
-**Claude desktop app (recommended)**: from the `canvas-library` folder run
+**Claude desktop app (recommended)**: from the project folder run
 
 ```bash
 npm run setup:desktop
